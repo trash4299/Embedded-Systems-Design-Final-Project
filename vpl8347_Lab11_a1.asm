@@ -235,14 +235,41 @@ next2		add		#4, r11
 			ret
 
 displaySamples:
+			mov		#0, r15		; reload boolean
 			mov		#0, r10		; loop counter and conArray index
 			bic		#2, r13
-			cmp		#1, r13		; checks lin or log
+			mov		#TASSEL_1 + ID_0 + TAIE, &TA0CTL
+			mov		#CCIE, &TACCTL0
+twoorfive	cmp		#1, r13		; checks "sample rate"
 			jeq		five
-two
 
-			ret
-five
+			mov		#0x1900, &TACCR0
+			EINT							;might not be needed because maybe in c file
+			jmp		oneormore
+five		mov		#0x3e80, &TACCR0
+			EINT							;might not be needed because maybe in c file
+
+oneormore	cmp.b	#5, conArray(r10)
+			bis		#MC_1, &TA0CTL
+			jge		morea
+
+one			cmp		#1, r15
+			jeq		reload
+			mov		conArray(r10), P1OUT
+			jmp		one
+morea		cmp		#1, r15
+			jeq		reload
+			mov		#LEDs4, P1OUT
+moreb		mov.b	conArray(r10), r5
+			mov		LEDs0(r5), P1OUT
+			jmp		morea
+
+reload		inc		r10
+			cmp		#0x14, r10
+			jeq		endDisplay
+			mov		#0, r15
+			jmp		twoorfive		;switch to a better reload
+endDisplay	bis		#MC0, &TA0CTL
 			ret
 
 meas_base_val:
@@ -326,5 +353,13 @@ ISr70		dec		r7
 			dec		r8
 			jnz		Reloadr7
 			ret
+;ISR
+T0_A0_ISR:	bic.w	#TAIFG ,&TA0CTL		; this code runs when 	TAR = TACCR0
+			bic.w 	#CCIFG, &TACCTL0
+			mov		#1, r15
+Skip		reti
 
+;Interrupt Vectors
+            .sect   ".int09"        ; T0_A0 Vector (0xFFF2) - 1 source (CCIE on CCR0)
+isr_T0_A0:  .short  T0_A0_ISR       ; T0_A0 ISR address
 .end
