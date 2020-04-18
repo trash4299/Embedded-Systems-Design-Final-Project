@@ -170,73 +170,70 @@ convertSamples:
 			mov		#0, r11		; UART_samples index
 			cmp		#2, r13		; checks lin or log
 			jge		conlin
-conlog		mov.b	#1, conArray(r10)
-			bic		#0x0003, UART_samples(r11)
+conlog		mov.b	#8, conArray(r10)
+			;bic		#0x0003, UART_samples(r11)		;not needed because i switched to jge
 
-			cmp		#0x00000000, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x00000001, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x00000010, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x00000100, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x00001000, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x00010000, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x00100000, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			cmp		#0x0100000, UART_samples(r11)
-			jeq		next2
-			inc.b	conArray(r10)
-			;cmp		#0x1000000, UART_samples(r11)		;it should never reach here
-next1		add		#4, r11
-			inc		r10
-			cmp		#0x14, r10
-			jne		conlog
-			ret
+			cmp		#1000000000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0100000000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0010000000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0001000000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0000100000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0000010000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0000001000b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			cmp		#0000000100b, UART_samples(r11)
+			jge		next
+			dec.b	conArray(r10)
+			;cmp		#0000000000b, UART_samples(r11)		;don't need because if here then it will fit case
+			jmp		next
 conlin		mov.b	#1, conArray(r10)
 			bic		#0x007f, UART_samples(r11)
 
 			cmp		#0x0000, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			cmp		#0x0080, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			cmp		#0x0100, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			cmp		#0x0180, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			cmp		#0x0200, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			cmp		#0x0280, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			cmp		#0x0300, UART_samples(r11)
-			jeq		next2
+			jeq		next
 			inc.b	conArray(r10)
 			;cmp		#0x0380, UART_samples(r11)		;it should never reach here
-next2		add		#4, r11
+			;jeq		next
+next		incd	r11
 			inc		r10
 			cmp		#0x14, r10
 			jne		conlin
 			ret
 
-displaySamples:
+displaySamples:																		;ADD IN CENTER BUTTON AS ESCAPE AND DOUBLE CHECK LED POSITIONS FOR ARRAY
+			mov.b	#0x1a, SWdelay
 			mov		#0, r15		; reload boolean
-			mov		#0, r10		; loop counter and conArray index
 			bic		#2, r13
 			mov		#TASSEL_1 + ID_0 + TAIE, &TA0CTL
 			mov		#CCIE, &TACCTL0
@@ -245,31 +242,42 @@ twoorfive	cmp		#1, r13		; checks "sample rate"
 
 			mov		#0x1900, &TACCR0
 			EINT							;might not be needed because maybe in c file
-			jmp		oneormore
+			jmp		restart
 five		mov		#0x3e80, &TACCR0
 			EINT							;might not be needed because maybe in c file
 
+restart		mov		#0, r10		; loop counter and conArray index
 oneormore	cmp.b	#5, conArray(r10)
 			bis		#MC_1, &TA0CTL
 			jge		morea
 
 one			cmp		#1, r15
 			jeq		reload
-			mov		conArray(r10), P1OUT
+			mov		conArray(r10), r5
+			mov		LEDs0(r5), P1OUT
 			jmp		one
 morea		cmp		#1, r15
 			jeq		reload
 			mov		#LEDs4, P1OUT
-moreb		mov.b	conArray(r10), r5
+moreb		call	#meas_latest_val					;maybe take this out if slows down lights too much
+			mov 	#0x8, r14
+			cmp.w	meas_latest(R14), meas_base(R14)
+			jge		endDisplay
+			mov.b	conArray(r10), r5
 			mov		LEDs0(r5), P1OUT
 			jmp		morea
 
-reload		inc		r10
-			cmp		#0x14, r10
-			jeq		endDisplay
+reload		call	#meas_latest_val
+			mov 	#0x8, r14
+			cmp.w	meas_latest(R14), meas_base(R14)
+			jge		endDisplay
 			mov		#0, r15
-			jmp		twoorfive		;switch to a better reload
+			inc		r10
+			cmp		#0x14, r10
+			jeq		restart
+			jmp		oneormore
 endDisplay	bis		#MC0, &TA0CTL
+			clr		P1OUT
 			ret
 
 meas_base_val:

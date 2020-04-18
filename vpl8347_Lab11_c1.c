@@ -24,6 +24,7 @@ Description:        Main C file for Lab 11. Combination of capacitive touch sens
 char UART_SW_FLAG;
 int uartRxedChar;
 int UART_samples[20];
+int samp[20] = {369,237,127,48,6,4,43,119,226,356,498,641,774,887,969,1015,1020,986,913,808};
 
 extern void setup(void);
 extern void waitForCenter(void);
@@ -40,7 +41,8 @@ void main(void) {
     while(1) {
         waitForUpDown();
         waitForLeftRight();
-        getSamples();
+        //getSamples();             ;for debugging
+        memcpy(UART_samples,samp,20);
         convertSamples();
         displaySamples();
     }
