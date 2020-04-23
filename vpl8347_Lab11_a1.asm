@@ -246,57 +246,51 @@ nextlin		incd	r11
 
 displaySamples:
 			mov.b	#0x1a, &SWdelay
-			mov		#TASSEL_1 + TAIE, &TA1CTL
-			mov		#CCIE, &TA1CCTL0
-			mov		#0, &nextLED			; reload boolean
+			call	#meas_base_val
+			mov.b	#0, &nextLED			; reload boolean
 			bic		#2, r9					; sample rate
 			mov 	#8, r14					; points to center sensor
-twoorfive	cmp		#1, r9					; checks "sample rate"
-			jeq		five
-			mov		#0x1900, &TA1CCR0
-			jmp		restart
-five		mov		#0x3e80, &TA1CCR0
-			;jmp		restart				; it will go to that anyways
 restart		mov		#0, r10					; loop counter and conArray index
-oneormore	mov.b	conArray(r10), r4
+nextValue	mov.b	conArray(r10), r4
 			add		#0x30, r4
 jammed		bit.b 	#UCA0TXIFG,&IFG2 		; USI TX buffer ready?
 			jz 		jammed					; Jump if TX buffer not ready
 			mov		r4, &UCA0TXBUF
-			bis		#MC_1+TACLR, &TA1CTL
+			mov		#TASSEL_1 + TAIE + MC_1, &TA0CTL
+			mov		#CCIE, &TA0CCTL0
+			cmp		#1, r9					; checks "sample rate"
+			jeq		five
+			mov		#0x1900, &TA0CCR0
+			jmp		oneormore
+five		mov		#0x3e80, &TA0CCR0
+oneormore	eint
 			cmp.b	#5, conArray(r10)
 			jge		morea
-
-one			cmp		#1, &nextLED
+one			cmp.b	#1, &nextLED
 			jeq		reload
-			call	#meas_latest_val
-			cmp		meas_latest(r14), meas_base(r14)
-			jge		endDisplay
 			mov.b	conArray(r10), r4
 			rla		r4
-			mov		LEDs0(r4), P1OUT
+			mov.b	LEDs0(r4), P1OUT
 			jmp		one
-morea		cmp		#1, &nextLED
+morea		cmp.b	#1, &nextLED
 			jeq		reload
-			mov		#LEDs4, P1OUT
-moreb		call	#meas_latest_val
-			cmp		meas_latest(r14), meas_base(r14)
-			jge		endDisplay
-			mov.b	conArray(r10), r4
+			mov.b	#LEDs4, P1OUT
+moreb		mov.b	conArray(r10), r4
 			rla		r4
-			mov		LEDs0(r4), P1OUT
+			mov.b	LEDs0(r4), P1OUT
 			jmp		morea
 
 reload		call	#meas_latest_val
 			cmp		meas_latest(r14), meas_base(r14)
 			jge		endDisplay
-			mov		#0, &nextLED
+			mov.b	#0, &nextLED
 			inc		r10
 			cmp		#0x14, r10
 			jeq		restart
-			jmp		oneormore
+			jmp		nextValue
 
-endDisplay	bis		#TACLR, &TA1CTL
+endDisplay	bic		#TAIE, &TA0CTL
+			bis		#TACLR, &TA0CTL
 			clr		P1OUT
 			ret
 
@@ -318,7 +312,7 @@ meas_base_again
 			xor		#CCIS0, &TA0CCTL1		;capture trigger by toggeling CCIS0
 			mov		TA0CCR1, meas_base(R6)
 			bic 	#MC1+MC0, &TA0CTL
-			sub 	#0x20, meas_base(R6)	; Adjust this baseline
+			sub 	#0x29, meas_base(R6)	; Adjust this baseline
 			bic.b 	R5,&P2SEL2				; Stop the oscillation on the latest. pin
 			rla.b	R5						; Prepare next x
 			add.b	#0x02, R6				; Prepare the next index into the array
@@ -390,13 +384,14 @@ ISr70		dec		r7
 			jnz		Reloadr7
 			ret
 ;ISR
-T1_A0_ISR:	bic		#TAIFG, &TA1CTL		; this code runs when 	TAR = TACCR0
-			bic		#CCIFG, &TA1CCTL0
-			bis		#TACLR, &TA1CTL
-			mov		#1, &nextLED
+T1_A0_ISR:	dint
+			bic		#TAIFG + TAIE, &TA0CTL		; this code runs when 	TA1R = TA1CCR0
+			bis		#TACLR, &TA0CTL
+			mov.b	#1, &nextLED
 			reti
 
 ;Interrupt Vectors
-            .sect   ".int13"        ; T1_A0 Vector (0xFFFA) - 1 source (CCIE on CCR0)
+            .sect   ".int09"        ; T1_A0 Vector (0xFFFA) - 1 source (CCIE on CCR0)
 isr_T1_A0:  .short  T1_A0_ISR       ; T1_A0 ISR address
+
 .end

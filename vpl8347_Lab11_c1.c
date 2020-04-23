@@ -43,7 +43,7 @@ void main(void) {
         waitForLeftRight();
         //getSamples();             ;for debugging
         UART_setup();
-        memcpy(UART_samples,samp,20);
+        memcpy(UART_samples,samp,40);
         convertSamples();
         displaySamples();
     }
